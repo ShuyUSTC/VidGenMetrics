@@ -64,7 +64,7 @@ class FrameAcc:
             inputs = self.processor(text=texts, images=frame_batch, truncation=True, max_length=self.max_length,
                                     return_overflowing_tokens=False, padding="max_length",
                                     return_tensors="pt")
-            inputs = inputs.to(self.device)
+            inputs = inputs.to(device=self.device, dtype=torch.float16)
             outputs = self.model(**inputs)
             clip_score_per_frame.append(outputs.logits_per_image)
         clip_score_per_frame = torch.cat(clip_score_per_frame)
