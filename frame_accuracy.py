@@ -31,7 +31,7 @@ class FrameAcc:
         assert return_type in self.RETURN_TYPE, f'Got return type: {return_type}, but only support f{self.RETURN_TYPE}'
         self.return_type = return_type
         self.processor = CLIPProcessor.from_pretrained(version)
-        self.model = CLIPModel.from_pretrained(version).to(device)
+        self.model = CLIPModel.from_pretrained(version).to(dtype=torch.float16, device=device)
         self.prefix = prefix
         self.device = device
         self.max_length = max_length
@@ -64,7 +64,10 @@ class FrameAcc:
             inputs = self.processor(text=texts, images=frame_batch, truncation=True, max_length=self.max_length,
                                     return_overflowing_tokens=False, padding="max_length",
                                     return_tensors="pt")
-            inputs = inputs.to(device=self.device, dtype=torch.float16)
+            inputs = inputs.to(device=self.device)
+            for key in inputs:
+                if inputs[key].dtype == torch.float:
+                    inputs[key] = inputs[key].to(torch.float16)
             outputs = self.model(**inputs)
             clip_score_per_frame.append(outputs.logits_per_image)
         clip_score_per_frame = torch.cat(clip_score_per_frame)

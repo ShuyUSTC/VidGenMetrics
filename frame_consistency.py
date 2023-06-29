@@ -54,7 +54,7 @@ class FrameConsistency:
         inputs = self.processor(frames, return_tensors='pt').to(self.device)
         outputs = self.model(**inputs)
         frame_embeds = outputs.image_embeds
-        consist = self.cosine(frame_embeds[:-1], frame_embeds[1:])
+        consist = self.cosine(frame_embeds[:-1], frame_embeds[1:]).cpu()
         consist = consist.mean()
 
         if self.return_type == 'pt':
