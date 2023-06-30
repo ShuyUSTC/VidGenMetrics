@@ -99,5 +99,5 @@ if __name__ == '__main__':
     images = glob.glob('./examples/*.png')
     images.sort()
     images = [Image.open(img) for img in images]
-    frame_acc = CLIPScore()
-    print(frame_acc(prompt, images))  # Also support List of np.ndarray with dtype as np.uint8
+    score = CLIPScore()
+    print(score(prompt, images))  # Also support List of np.ndarray with dtype as np.uint8
