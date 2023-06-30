@@ -22,7 +22,7 @@ class FrameConsistency:
             version: clip model version
             device: device
             mini_bsz: mini batch size to process frames
-            return_type: return type. support: pt (torch.Tensor), np(numpy.Ndarray), float (float)
+            return_type: return type. support: pt (torch.Tensor), np(numpy.ndarray), float (float)
         """
         assert return_type in self.RETURN_TYPE, f'Got return type: {return_type}, but only support f{self.RETURN_TYPE}'
         self.return_type = return_type
@@ -44,7 +44,7 @@ class FrameConsistency:
         Compute frame consistency of consecutive frames in `frames`
 
         Args:
-            frames (list[Image | np.Ndarray] | Image | np.Ndarray):
+            frames (list[Image | np.ndarray] | Image | np.ndarray):
 
         Returns:
             frame consistency
@@ -74,4 +74,4 @@ if __name__ == '__main__':
     images.sort()
     images = [Image.open(img) for img in images]
     frame_consistency = FrameConsistency()
-    print(frame_consistency(images))
+    print(frame_consistency(images))  # Also support List of np.ndarray with dtype as np.uint8

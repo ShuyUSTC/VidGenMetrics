@@ -26,7 +26,7 @@ class FrameAcc:
             prefix: prefix added to the prompt
             max_length: max_length for text tokenizer
             mini_bsz: mini batch size to process frames
-            return_type: return type. support: pt (torch.Tensor), np(numpy.Ndarray), float (float)
+            return_type: return type. support: pt (torch.Tensor), np(numpy.ndarray), float (float)
         """
         assert return_type in self.RETURN_TYPE, f'Got return type: {return_type}, but only support f{self.RETURN_TYPE}'
         self.return_type = return_type
@@ -50,7 +50,7 @@ class FrameAcc:
 
         Args:
             texts (list[str] | str):
-            frames (list[Image | np.Ndarray] | Image | np.Ndarray):
+            frames (list[Image | np.ndarray] | Image | np.ndarray):
 
         Returns:
             CLIP similarity(ies)
@@ -90,4 +90,4 @@ if __name__ == '__main__':
     images.sort()
     images = [Image.open(img) for img in images]
     frame_acc = FrameAcc()
-    print(frame_acc(prompt, images))
+    print(frame_acc(prompt, images))  # Also support List of np.ndarray with dtype as np.uint8
