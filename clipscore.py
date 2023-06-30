@@ -11,7 +11,7 @@ from torch.nn import CosineSimilarity
 import numpy as np
 
 
-class FrameAcc:
+class CLIPScore:
     RETURN_TYPE = [
         'pt',
         'np',
@@ -99,5 +99,5 @@ if __name__ == '__main__':
     images = glob.glob('./examples/*.png')
     images.sort()
     images = [Image.open(img) for img in images]
-    frame_acc = FrameAcc()
+    frame_acc = CLIPScore()
     print(frame_acc(prompt, images))  # Also support List of np.ndarray with dtype as np.uint8
