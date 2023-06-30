@@ -1,5 +1,5 @@
 """
-Code for Video version of CLIPScore (https://arxiv.org/abs/2104.08718)
+Code for Video version of CLIPScore, including frame accuracy and frame consistency
 
 By Yan Shu
 shuy.ustc@gmail.com
@@ -7,6 +7,7 @@ shuy.ustc@gmail.com
 from transformers import CLIPProcessor, CLIPModel
 
 import torch
+from torch.nn import CosineSimilarity
 import numpy as np
 
 
@@ -32,6 +33,7 @@ class FrameAcc:
         self.return_type = return_type
         self.processor = CLIPProcessor.from_pretrained(version)
         self.model = CLIPModel.from_pretrained(version).to(dtype=torch.float16, device=device)
+        self.cosine = CosineSimilarity(1).to(device)
         self.prefix = prefix
         self.device = device
         self.max_length = max_length
@@ -58,7 +60,8 @@ class FrameAcc:
         """
         mini_bsz = self.mini_bsz if self.mini_bsz > 0 else len(frames)
         mini_bsz = min(mini_bsz, len(frames))
-        clip_score_per_frame = []
+        acc_per_frame = []
+        frame_embeds = []
         for b_idx in range((len(frames) + mini_bsz - 1) // mini_bsz):
             frame_batch = frames[b_idx * mini_bsz: b_idx * mini_bsz + mini_bsz]
             inputs = self.processor(text=texts, images=frame_batch, truncation=True, max_length=self.max_length,
@@ -69,15 +72,22 @@ class FrameAcc:
                 if inputs[key].dtype == torch.float:
                     inputs[key] = inputs[key].to(torch.float16)
             outputs = self.model(**inputs)
-            clip_score_per_frame.append(outputs.logits_per_image)
-        clip_score_per_frame = torch.cat(clip_score_per_frame)
-        clip_score = w * clip_score_per_frame.mean(dim=0).cpu()
+            acc_per_frame.append(outputs.logits_per_image)
+            frame_embeds.append(outputs.image_embeds)
+        acc_per_frame = torch.cat(acc_per_frame)
+        acc = w * acc_per_frame.mean(dim=0).cpu()
+
+        frame_embeds = torch.cat(frame_embeds)
+        consist = self.cosine(frame_embeds[:-1], frame_embeds[1:]).cpu()
+        consist = consist.mean()
+
         if self.return_type == 'pt':
-            return clip_score
+            return {'frame_accuracy': acc, 'frame_consistency': consist}
         elif self.return_type == 'np':
-            return np.array(clip_score)
+            return {'frame_accuracy': np.array(acc), 'frame_consistency': np.array(consist)}
         elif self.return_type == 'float':
-            return [float(sim) for sim in clip_score] if len(clip_score) > 1 else float(clip_score)
+            return {'frame_accuracy': [float(sim) for sim in acc] if len(acc) > 1 else float(acc),
+                    'frame_consistency': [float(sim) for sim in consist] if len(consist) > 1 else float(consist)}
         else:
             raise NotImplementedError
 
