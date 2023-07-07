@@ -4,11 +4,12 @@ Code for Video version of CLIPScore, including frame accuracy and frame consiste
 By Yan Shu
 shuy.ustc@gmail.com
 """
-from transformers import CLIPProcessor, CLIPModel
 
-import torch
-from torch.nn import CosineSimilarity
 import numpy as np
+import torch
+from einops import rearrange
+from torch.nn import CosineSimilarity
+from transformers import CLIPProcessor, CLIPModel
 
 
 class CLIPScore:
@@ -46,7 +47,7 @@ class CLIPScore:
             param.requires_grad = False
 
     @torch.no_grad()
-    def __call__(self, texts, frames, w=1.):
+    def __call__(self, texts, frames, step=1, w=1.):
         """
         Compute CLIP score between frames and texts
 
@@ -58,11 +59,12 @@ class CLIPScore:
             CLIP similarity(ies)
 
         """
-        mini_bsz = self.mini_bsz if self.mini_bsz > 0 else len(frames)
-        mini_bsz = min(mini_bsz, len(frames))
+        num_frames = len(frames)
+        mini_bsz = self.mini_bsz if self.mini_bsz > 0 else num_frames
+        mini_bsz = min(mini_bsz, num_frames)
         acc_per_frame = []
         frame_embeds = []
-        for b_idx in range((len(frames) + mini_bsz - 1) // mini_bsz):
+        for b_idx in range((num_frames + mini_bsz - 1) // mini_bsz):
             frame_batch = frames[b_idx * mini_bsz: b_idx * mini_bsz + mini_bsz]
             inputs = self.processor(text=texts, images=frame_batch, truncation=True, max_length=self.max_length,
                                     return_overflowing_tokens=False, padding="max_length",
@@ -78,7 +80,21 @@ class CLIPScore:
         acc = w * acc_per_frame.mean(dim=0).cpu()
 
         frame_embeds = torch.cat(frame_embeds)
-        consist = self.cosine(frame_embeds[:-1], frame_embeds[1:]).cpu()
+        rest_frames = num_frames % step
+        rest_embeds = frame_embeds[num_frames-rest_frames:] if rest_frames > 0 else None
+        frame_embeds = rearrange(frame_embeds[:num_frames-rest_frames], '(t s) c -> s c t', s=step)
+        if rest_frames > 0:
+            rest_embeds = torch.cat((frame_embeds[:rest_frames], rest_embeds), dim=2)
+            consist = self.cosine(rest_embeds[..., :-1], rest_embeds[..., 1:]).cpu()
+            consist = consist.mean(dim=1)
+            if frame_embeds.shape[2] > 1:
+                consist_short = self.cosine(frame_embeds[rest_frames:, :, :-1], frame_embeds[rest_frames:, :, 1:]).cpu()
+                consist = torch.cat((consist, consist_short.mean(dim=1)))
+        else:
+            consist = self.cosine(frame_embeds[..., :-1], frame_embeds[..., 1:]).cpu()
+            consist = consist.mean(dim=1)
+        consist = consist.mean()
+        # consist = self.cosine(frame_embeds[:-1], frame_embeds[1:]).cpu()
         consist = consist.mean()
 
         if self.return_type == 'pt':

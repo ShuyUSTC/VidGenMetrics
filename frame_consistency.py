@@ -5,6 +5,7 @@ shuy.ustc@gmail.com
 """
 import numpy as np
 import torch
+from einops import rearrange
 from torch.nn import CosineSimilarity
 from transformers import CLIPImageProcessor, CLIPVisionModelWithProjection
 
@@ -39,22 +40,41 @@ class FrameConsistency:
             param.requires_grad = False
 
     @torch.no_grad()
-    def __call__(self, frames):
+    def __call__(self, frames, step=1):
         """
         Compute frame consistency of consecutive frames in `frames`
 
         Args:
             frames (list[Image | np.ndarray] | Image | np.ndarray):
+            step: frame step to compute consistency
 
         Returns:
             frame consistency
 
         """
-        assert len(frames) > 1, 'Need at least 2 frames to compute frame consistency'
-        inputs = self.processor(frames, return_tensors='pt').to(self.device)
-        outputs = self.model(**inputs)
-        frame_embeds = outputs.image_embeds
-        consist = self.cosine(frame_embeds[:-1], frame_embeds[1:]).cpu()
+        num_frames = len(frames)
+        assert num_frames > 1, 'Need at least 2 frames to compute frame consistency'
+        assert num_frames > step, ''
+        frame_embeds = []
+        batch_size = self.mini_bsz if self.mini_bsz > 0 else len(frames)
+        for b_idx in range(0, num_frames, batch_size):
+            inputs = self.processor(frames[b_idx: b_idx + batch_size], return_tensors='pt').to(self.device)
+            outputs = self.model(**inputs)
+            frame_embeds.append(outputs.image_embeds)
+        frame_embeds = torch.cat(frame_embeds)
+        rest_frames = num_frames % step
+        rest_embeds = frame_embeds[num_frames-rest_frames:] if rest_frames > 0 else None
+        frame_embeds = rearrange(frame_embeds[:num_frames-rest_frames], '(t s) c -> s c t', s=step)
+        if rest_frames > 0:
+            rest_embeds = torch.cat((frame_embeds[:rest_frames], rest_embeds), dim=2)
+            consist = self.cosine(rest_embeds[..., :-1], rest_embeds[..., 1:]).cpu()
+            consist = consist.mean(dim=1)
+            if frame_embeds.shape[2] > 1:
+                consist_short = self.cosine(frame_embeds[rest_frames:, :, :-1], frame_embeds[rest_frames:, :, 1:]).cpu()
+                consist = torch.cat((consist, consist_short.mean(dim=1)))
+        else:
+            consist = self.cosine(frame_embeds[..., :-1], frame_embeds[..., 1:]).cpu()
+            consist = consist.mean(dim=1)
         consist = consist.mean()
 
         if self.return_type == 'pt':
