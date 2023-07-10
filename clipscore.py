@@ -81,7 +81,7 @@ class CLIPScore:
 
         frame_embeds = torch.cat(frame_embeds)
         rest_frames = num_frames % step
-        rest_embeds = frame_embeds[num_frames-rest_frames:] if rest_frames > 0 else None
+        rest_embeds = frame_embeds[num_frames-rest_frames:].unsqueeze(2) if rest_frames > 0 else None
         frame_embeds = rearrange(frame_embeds[:num_frames-rest_frames], '(t s) c -> s c t', s=step)
         if rest_frames > 0:
             rest_embeds = torch.cat((frame_embeds[:rest_frames], rest_embeds), dim=2)
